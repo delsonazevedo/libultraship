@@ -8,3 +8,55 @@ target_link_libraries(ImGui PUBLIC SDL2::SDL2)
 
 # imgui_impl_opengl3 should not try to load GL via glew/gl3w on Switch — glad is used.
 target_compile_definitions(ImGui PRIVATE IMGUI_IMPL_OPENGL_LOADER_CUSTOM)
+
+# devkitPro doesn't ship libzip / spdlog / nlohmann_json for Switch, so fetch them.
+# src/CMakeLists.txt has matching guards that skip find_package when these targets
+# are already created on Switch.
+include(FetchContent)
+
+#--- nlohmann_json (header-only) -------------------------------------------------
+set(JSON_BuildTests OFF CACHE INTERNAL "")
+FetchContent_Declare(
+    nlohmann_json
+    GIT_REPOSITORY https://github.com/nlohmann/json.git
+    GIT_TAG v3.11.3
+)
+FetchContent_MakeAvailable(nlohmann_json)
+
+#--- spdlog ----------------------------------------------------------------------
+set(SPDLOG_BUILD_EXAMPLE OFF CACHE INTERNAL "")
+set(SPDLOG_BUILD_TESTS OFF CACHE INTERNAL "")
+set(SPDLOG_INSTALL OFF CACHE INTERNAL "")
+FetchContent_Declare(
+    spdlog
+    GIT_REPOSITORY https://github.com/gabime/spdlog.git
+    GIT_TAG v1.13.0
+)
+FetchContent_MakeAvailable(spdlog)
+
+#--- libzip ---------------------------------------------------------------------
+# Pulls in zlib + bzip2 from devkitPro portlibs (switch-zlib, switch-bzip2).
+# Disable everything we don't need to keep the cross-build small.
+set(BUILD_TOOLS OFF CACHE INTERNAL "")
+set(BUILD_REGRESS OFF CACHE INTERNAL "")
+set(BUILD_EXAMPLES OFF CACHE INTERNAL "")
+set(BUILD_DOC OFF CACHE INTERNAL "")
+set(BUILD_OSSFUZZ OFF CACHE INTERNAL "")
+set(BUILD_SHARED_LIBS OFF CACHE INTERNAL "")
+set(LIBZIP_DO_INSTALL OFF CACHE INTERNAL "")
+set(ENABLE_LZMA OFF CACHE INTERNAL "")
+set(ENABLE_ZSTD OFF CACHE INTERNAL "")
+set(ENABLE_OPENSSL OFF CACHE INTERNAL "")
+set(ENABLE_GNUTLS OFF CACHE INTERNAL "")
+set(ENABLE_MBEDTLS OFF CACHE INTERNAL "")
+set(ENABLE_WINDOWS_CRYPTO OFF CACHE INTERNAL "")
+FetchContent_Declare(
+    libzip
+    GIT_REPOSITORY https://github.com/nih-at/libzip.git
+    GIT_TAG v1.10.1
+)
+FetchContent_MakeAvailable(libzip)
+# libzip 1.10 exports the target as `zip`. Provide an alias for the find_package name.
+if(TARGET zip AND NOT TARGET libzip::zip)
+    add_library(libzip::zip ALIAS zip)
+endif()
