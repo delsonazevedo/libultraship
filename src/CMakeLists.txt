@@ -85,6 +85,12 @@ if (CMAKE_SYSTEM_NAME STREQUAL "Darwin")
 
 endif()
 
+if (CMAKE_SYSTEM_NAME STREQUAL "NintendoSwitch")
+    set(THREADS_PREFER_PTHREAD_FLAG ON)
+    find_package(Threads REQUIRED)
+    target_link_libraries(libultraship PRIVATE Threads::Threads)
+endif()
+
 if (CMAKE_SYSTEM_NAME STREQUAL "Darwin" OR CMAKE_SYSTEM_NAME STREQUAL "iOS")
     find_Library(OSX_FOUNDATION Foundation)
     find_Library(OSX_AVFOUNDATION AVFoundation)

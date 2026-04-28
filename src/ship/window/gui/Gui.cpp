@@ -34,6 +34,10 @@
 #include "ship/port/mobile/MobileImpl.h"
 #endif
 
+#ifdef __SWITCH__
+#include "ship/port/switch/SwitchImpl.h"
+#endif
+
 #ifdef ENABLE_OPENGL
 #include <imgui_impl_opengl3.h>
 #include <imgui_impl_sdl2.h>
@@ -113,6 +117,10 @@ void Gui::Init(GuiWindowInitData windowImpl) {
     mImGuiIo->Fonts->AddFontFromMemoryCompressedBase85TTF(fontawesome_compressed_data_base85, iconFontSize,
                                                           &iconsConfig, sIconsRanges);
 
+#ifdef __SWITCH__
+    Ship::Switch::ImGuiSetupFont(mImGuiIo->Fonts);
+#endif
+
 #if defined(__ANDROID__)
     // Scale everything by 2 for Android
     ImGui::GetStyle().ScaleAllSizes(2.0f);
@@ -151,6 +159,11 @@ void Gui::Init(GuiWindowInitData windowImpl) {
     ImGuiBackendInit();
 
     mInterpreter = dynamic_pointer_cast<Fast::Fast3dWindow>(Context::GetInstance()->GetWindow())->GetInterpreterWeak();
+
+#ifdef __SWITCH__
+    ImGui::GetStyle().ScaleAllSizes(2);
+    Switch::ApplyOverclock();
+#endif
 }
 
 void Gui::ImGuiWMInit() {
@@ -272,7 +285,7 @@ bool Gui::SupportsViewports() {
     }
 #endif
 
-#if defined(__ANDROID__) || defined(__IOS__)
+#if defined(__ANDROID__) || defined(__IOS__) || defined(__SWITCH__)
     return false;
 #endif
 
@@ -292,7 +305,9 @@ void Gui::HandleWindowEvents(WindowEvent event) {
         case WindowBackend::FAST3D_SDL_OPENGL:
         case WindowBackend::FAST3D_SDL_METAL:
             ImGui_ImplSDL2_ProcessEvent(static_cast<const SDL_Event*>(event.Sdl.Event));
-#if defined(__ANDROID__) || defined(__IOS__)
+#ifdef __SWITCH__
+            Ship::Switch::ImGuiProcessEvent(mImGuiIo->WantTextInput);
+#elif defined(__ANDROID__) || defined(__IOS__)
             Mobile::ImGuiProcessEvent(mImGuiIo->WantTextInput);
 #endif
             break;

@@ -15,6 +15,7 @@ int32_t osContInit(OSMesgQueue* mq, uint8_t* controllerBits, OSContStatus* statu
     *controllerBits = 0;
     status->status |= 1;
 
+#ifndef __SWITCH__
     std::string controllerDb = Ship::Context::LocateFileAcrossAppDirs("gamecontrollerdb.txt");
     int mappingsAdded = SDL_GameControllerAddMappingsFromFile(controllerDb.c_str());
     if (mappingsAdded >= 0) {
@@ -22,6 +23,7 @@ int32_t osContInit(OSMesgQueue* mq, uint8_t* controllerBits, OSContStatus* statu
     } else {
         SPDLOG_ERROR("Failed add SDL game controller mappings from \"{}\" ({})", controllerDb, SDL_GetError());
     }
+#endif
 
     SDL_SetHint(SDL_HINT_JOYSTICK_THREAD, "1");
     if (SDL_Init(SDL_INIT_GAMECONTROLLER) != 0) {
