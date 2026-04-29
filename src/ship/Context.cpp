@@ -236,9 +236,9 @@ bool Context::InitResourceManager(const std::vector<std::string>& archivePaths,
         return false;
     }
 
-#ifdef __SWITCH__
-    Ship::Switch::Init(PostInitPhase);
-#endif
+    // Note: SpaghettiKart's Engine.cpp already calls Ship::Switch::Init(PostInitPhase)
+    // before reaching here, so we don't repeat the call. Calling appletHook /
+    // clkrstInitialize twice triggers a silent fault on real hardware.
     return true;
 }
 
