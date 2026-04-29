@@ -36,6 +36,9 @@ FetchContent_Declare(
     GIT_TAG v1.13.0
 )
 FetchContent_MakeAvailable(spdlog)
+# devkitPro / newlib hides POSIX symbols (fileno, isatty, fsync) unless a
+# feature test macro is set. spdlog needs them in os-inl.h.
+target_compile_definitions(spdlog PUBLIC _POSIX_C_SOURCE=200809L _DEFAULT_SOURCE)
 
 #--- libzip ---------------------------------------------------------------------
 # Pulls in zlib + bzip2 from devkitPro portlibs (switch-zlib, switch-bzip2).
