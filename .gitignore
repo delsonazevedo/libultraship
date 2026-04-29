@@ -347,6 +347,11 @@ ZAPDUtils.lib
 .idea/
 cmake-build-**
 cmake_install.cmake
+CMakeFiles/
+CMakeCache.txt
+build.ninja
+.ninja_deps
+.ninja_log
 *.a
 *.o
 *.pc

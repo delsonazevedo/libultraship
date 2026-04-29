@@ -74,7 +74,9 @@ if(NOT TARGET nlohmann_json::nlohmann_json)
 endif()
 target_link_libraries(libultraship PUBLIC nlohmann_json::nlohmann_json)
 
-find_package(tinyxml2 REQUIRED)
+if(NOT TARGET tinyxml2::tinyxml2)
+    find_package(tinyxml2 REQUIRED)
+endif()
 target_link_libraries(libultraship PUBLIC tinyxml2::tinyxml2)
 
 if(NOT TARGET spdlog::spdlog)

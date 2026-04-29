@@ -13,9 +13,23 @@ target_compile_definitions(ImGui PRIVATE IMGUI_IMPL_OPENGL_LOADER_CUSTOM)
 target_compile_options(ImGui PRIVATE -include glad/glad.h)
 
 # devkitPro doesn't ship libzip / spdlog / nlohmann_json for Switch, so fetch them.
+# tinyxml2 IS in devkitPro (switch-tinyxml2 6.0.0) but it's too old for torch's
+# InsertNewChildElement (added in 7.1.0), so fetch a modern one too.
 # src/CMakeLists.txt has matching guards that skip find_package when these targets
 # are already created on Switch.
 include(FetchContent)
+
+#--- tinyxml2 (newer than devkitPro's 6.0.0) ------------------------------------
+set(tinyxml2_BUILD_TESTING OFF CACHE INTERNAL "")
+FetchContent_Declare(
+    tinyxml2
+    GIT_REPOSITORY https://github.com/leethomason/tinyxml2.git
+    GIT_TAG 10.0.0
+)
+FetchContent_MakeAvailable(tinyxml2)
+if(TARGET tinyxml2 AND NOT TARGET tinyxml2::tinyxml2)
+    add_library(tinyxml2::tinyxml2 ALIAS tinyxml2)
+endif()
 
 #--- nlohmann_json (header-only) -------------------------------------------------
 set(JSON_BuildTests OFF CACHE INTERNAL "")
