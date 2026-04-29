@@ -7,7 +7,10 @@ find_package(SDL2 REQUIRED)
 target_link_libraries(ImGui PUBLIC SDL2::SDL2)
 
 # imgui_impl_opengl3 should not try to load GL via glew/gl3w on Switch — glad is used.
+# CUSTOM tells ImGui "you provide GL". Force-include glad in every ImGui TU so
+# GLuint / GL_COLOR_BUFFER_BIT / glClear etc. are defined.
 target_compile_definitions(ImGui PRIVATE IMGUI_IMPL_OPENGL_LOADER_CUSTOM)
+target_compile_options(ImGui PRIVATE -include glad/glad.h)
 
 # devkitPro doesn't ship libzip / spdlog / nlohmann_json for Switch, so fetch them.
 # src/CMakeLists.txt has matching guards that skip find_package when these targets
