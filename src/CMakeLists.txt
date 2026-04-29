@@ -67,7 +67,10 @@ endif()
 if(NOT TARGET libzip::zip)
     find_package(libzip REQUIRED)
 endif()
-target_link_libraries(libultraship PRIVATE libzip::zip)
+# PUBLIC because O2rArchive.h transitively includes <zip.h> from consumer code.
+# On PC this "just works" via /usr/include; on Switch we need to propagate the
+# FetchContent include path to dependents (SpaghettiKart).
+target_link_libraries(libultraship PUBLIC libzip::zip)
 
 if(NOT TARGET nlohmann_json::nlohmann_json)
     find_package(nlohmann_json REQUIRED)
