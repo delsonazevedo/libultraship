@@ -12,6 +12,10 @@ target_link_libraries(ImGui PUBLIC SDL2::SDL2)
 target_compile_definitions(ImGui PRIVATE IMGUI_IMPL_OPENGL_LOADER_CUSTOM)
 target_compile_options(ImGui PRIVATE -include glad/glad.h)
 
+# Switch (libnx) has no fork/exec/waitpid, so disable ImGui's default
+# Platform_OpenInShellFn implementation that pulls them in.
+target_compile_definitions(ImGui PUBLIC IMGUI_DISABLE_DEFAULT_SHELL_FUNCTIONS)
+
 # devkitPro doesn't ship libzip / spdlog / nlohmann_json for Switch, so fetch them.
 # tinyxml2 IS in devkitPro (switch-tinyxml2 6.0.0) but it's too old for torch's
 # InsertNewChildElement (added in 7.1.0), so fetch a modern one too.
