@@ -284,7 +284,9 @@ std::string GfxRenderingAPIOGL::BuildFsShader(const CCFeatures& cc_features) {
         { "core_opengl", true },
         { "texture", "texture" },
         { "vOutColor", "vOutColor" },
-#elif defined(USE_OPENGLES)
+#elif defined(__SWITCH__) || defined(USE_OPENGLES)
+        // Switch (devkitPro libnx + glad) and other GLES targets use the
+        // GLES 3.0 shader path.
         { "GLSL_VERSION", "#version 300 es\nprecision mediump float;" },
         { "attr", "in" },
         { "opengles", true },
@@ -315,12 +317,41 @@ std::string GfxRenderingAPIOGL::BuildFsShader(const CCFeatures& cc_features) {
     auto res = static_pointer_cast<Ship::Shader>(
         Ship::Context::GetInstance()->GetResourceManager()->LoadResource(path, true, init));
 
+    // Filesystem fallback. On Switch, the PC release's spaghetti.o2r doesn't
+    // contain the default Fast3D shader; copying it next to the .nro under
+    // "shaders/opengl/default.shader.glsl" lets the renderer load it directly.
+    std::string shader_storage;
+    std::string* shader = nullptr;
     if (res == nullptr) {
+        std::vector<std::string> candidates;
+        candidates.push_back(Ship::Context::GetPathRelativeToAppDirectory(path));
+        candidates.push_back(path);
+        candidates.push_back(std::string("./") + path);
+        for (const auto& fsPath : candidates) {
+            if (FILE* f = std::fopen(fsPath.c_str(), "rb")) {
+                std::fseek(f, 0, SEEK_END);
+                long sz = std::ftell(f);
+                std::fseek(f, 0, SEEK_SET);
+                shader_storage.resize(sz > 0 ? (size_t)sz : 0);
+                if (sz > 0) {
+                    std::fread(shader_storage.data(), 1, (size_t)sz, f);
+                }
+                std::fclose(f);
+                if (!shader_storage.empty()) {
+                    shader = &shader_storage;
+                    break;
+                }
+            }
+        }
+    } else {
+        shader = static_cast<std::string*>(res->GetRawPointer());
+    }
+
+    if (shader == nullptr) {
         SPDLOG_ERROR("Failed to load default fragment shader, missing f3d.o2r?");
         abort();
     }
 
-    auto shader = static_cast<std::string*>(res->GetRawPointer());
     processor.load(*shader);
     processor.bind_include_loader(opengl_include_fs);
     auto result = processor.process();
@@ -353,7 +384,8 @@ static std::string BuildVsShader(const CCFeatures& cc_features) {
                                      { "attr", "in" },
                                      { "out", "out" },
                                      { "opengles", false }
-#elif defined(USE_OPENGLES)
+#elif defined(__SWITCH__) || defined(USE_OPENGLES)
+                                     // Switch (devkitPro libnx + glad) and other GLES targets
                                      { "GLSL_VERSION", "#version 300 es" },
                                      { "attr", "in" },
                                      { "out", "out" },
@@ -381,12 +413,39 @@ static std::string BuildVsShader(const CCFeatures& cc_features) {
     auto res = static_pointer_cast<Ship::Shader>(
         Ship::Context::GetInstance()->GetResourceManager()->LoadResource(path, true, init));
 
+    // Filesystem fallback (see BuildFsShader for the rationale).
+    std::string shader_storage;
+    std::string* shader = nullptr;
     if (res == nullptr) {
+        std::vector<std::string> candidates;
+        candidates.push_back(Ship::Context::GetPathRelativeToAppDirectory(path));
+        candidates.push_back(path);
+        candidates.push_back(std::string("./") + path);
+        for (const auto& fsPath : candidates) {
+            if (FILE* f = std::fopen(fsPath.c_str(), "rb")) {
+                std::fseek(f, 0, SEEK_END);
+                long sz = std::ftell(f);
+                std::fseek(f, 0, SEEK_SET);
+                shader_storage.resize(sz > 0 ? (size_t)sz : 0);
+                if (sz > 0) {
+                    std::fread(shader_storage.data(), 1, (size_t)sz, f);
+                }
+                std::fclose(f);
+                if (!shader_storage.empty()) {
+                    shader = &shader_storage;
+                    break;
+                }
+            }
+        }
+    } else {
+        shader = static_cast<std::string*>(res->GetRawPointer());
+    }
+
+    if (shader == nullptr) {
         SPDLOG_ERROR("Failed to load default vertex shader, missing f3d.o2r?");
         abort();
     }
 
-    auto shader = static_cast<std::string*>(res->GetRawPointer());
     processor.load(*shader);
     processor.bind_include_loader(opengl_include_fs);
     auto result = processor.process();
