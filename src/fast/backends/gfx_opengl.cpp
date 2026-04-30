@@ -7,6 +7,7 @@
 
 #include <map>
 #include <unordered_map>
+#include <vector>
 
 #ifndef _LANGUAGE_C
 #define _LANGUAGE_C
@@ -1019,7 +1020,27 @@ void GfxRenderingAPIOGL::ReadFramebufferToCPU(int fb_id, uint32_t width, uint32_
     }
 
     glBindFramebuffer(GL_FRAMEBUFFER, mFrameBuffers[fb_id].fbo);
+
+#if defined(__SWITCH__) || defined(USE_OPENGLES)
+    // GLES 3.0 glReadPixels only guarantees support for the format/type combo
+    // that matches the framebuffer's GL_IMPLEMENTATION_COLOR_READ_*. The
+    // (GL_RGBA, GL_UNSIGNED_SHORT_5_5_5_1) combo silently fails on Mesa NVC0
+    // (Switch), leaving rgba16_buf untouched - which makes Luigi Raceway's
+    // jumbotron TV stay black. Read as RGBA8 and pack to 5551 manually.
+    const size_t pixelCount = (size_t)width * (size_t)height;
+    std::vector<uint8_t> rgba8(pixelCount * 4);
+    glReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, rgba8.data());
+    for (size_t i = 0; i < pixelCount; ++i) {
+        const uint8_t r = rgba8[i * 4 + 0];
+        const uint8_t g = rgba8[i * 4 + 1];
+        const uint8_t b = rgba8[i * 4 + 2];
+        const uint8_t a = rgba8[i * 4 + 3];
+        rgba16_buf[i] = (uint16_t)(((r >> 3) << 11) | ((g >> 3) << 6) | ((b >> 3) << 1) | (a >> 7));
+    }
+#else
     glReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_SHORT_5_5_5_1, (void*)rgba16_buf);
+#endif
+
     glBindFramebuffer(GL_FRAMEBUFFER, mFrameBuffers[mCurrentFrameBuffer].fbo);
 }
 
