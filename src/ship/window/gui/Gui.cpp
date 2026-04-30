@@ -224,7 +224,8 @@ void Gui::ImGuiBackendInit() {
         case WindowBackend::FAST3D_SDL_OPENGL:
 #ifdef __APPLE__
             ImGui_ImplOpenGL3_Init("#version 410 core");
-#elif USE_OPENGLES
+#elif defined(USE_OPENGLES) || defined(__SWITCH__)
+            // Switch (devkitPro libnx + glad) runs a GLES 3.0 context.
             ImGui_ImplOpenGL3_Init("#version 300 es");
 #else
             ImGui_ImplOpenGL3_Init("#version 120");

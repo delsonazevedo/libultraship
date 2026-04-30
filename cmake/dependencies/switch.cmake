@@ -9,8 +9,12 @@ target_link_libraries(ImGui PUBLIC SDL2::SDL2)
 # imgui_impl_opengl3 should not try to load GL via glew/gl3w on Switch — glad is used.
 # CUSTOM tells ImGui "you provide GL". Force-include glad in every ImGui TU so
 # GLuint / GL_COLOR_BUFFER_BIT / glClear etc. are defined.
+# The shim header (which itself includes glad) additionally neutralises
+# glPolygonMode (desktop-only, null in glad-libnx) - see the header for why.
 target_compile_definitions(ImGui PRIVATE IMGUI_IMPL_OPENGL_LOADER_CUSTOM)
-target_compile_options(ImGui PRIVATE -include glad/glad.h)
+target_compile_options(ImGui PRIVATE
+    -include ${CMAKE_CURRENT_SOURCE_DIR}/cmake/dependencies/switch_imgui_shim.h
+)
 
 # Switch (libnx) has no fork/exec/waitpid, so disable ImGui's default
 # Platform_OpenInShellFn implementation that pulls them in.
