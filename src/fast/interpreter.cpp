@@ -1774,6 +1774,8 @@ void Interpreter::GfxSpTri1(uint8_t vtx1_idx, uint8_t vtx2_idx, uint8_t vtx3_idx
 
     uint32_t tm = 0;
     uint32_t tex_width[2], tex_height[2], tex_width2[2], tex_height2[2];
+    float uv_tex_width[2]  = { 1.0f, 1.0f };
+    float uv_tex_height[2] = { 1.0f, 1.0f };
     uint32_t effective_tile[2];
 
     for (int i = 0; i < 2; i++) {
@@ -1850,6 +1852,10 @@ void Interpreter::GfxSpTri1(uint8_t vtx1_idx, uint8_t vtx2_idx, uint8_t vtx3_idx
                 tex_height[i] = tex_height2[i];
             }
 
+            // Default UV divisors: updated each iteration after the tile clamp.
+            uv_tex_width[i]  = (float)tex_width[i];
+            uv_tex_height[i] = (float)tex_height[i];
+
             uint32_t tex_width1 = tex_width[i] << (cms & G_TX_MIRROR);
             uint32_t tex_height1 = tex_height[i] << (cmt & G_TX_MIRROR);
 
@@ -1860,6 +1866,29 @@ void Interpreter::GfxSpTri1(uint8_t vtx1_idx, uint8_t vtx2_idx, uint8_t vtx3_idx
             if ((cmt & G_TX_CLAMP) && ((cmt & G_TX_MIRROR) || tex_height1 != tex_height2[i])) {
                 tm |= 1 << 2 * i + 1;
                 cmt &= ~G_TX_CLAMP;
+            }
+
+            // For HD LOAD_AS_IMG replacements (e.g. 26x16 N64 -> 832x512 HD),
+            // the N64 UV max is (N-1)/N (e.g. 15/16=0.9375), so the bottom
+            // ~1/N of the HD texture is unreachable, clipping italic descenders.
+            // Fix: reduce the UV divisor by 2 so the last N64 texel maps past 1.0,
+            // which GL CLAMP_TO_EDGE then clamps to the actual last HD pixel.
+            // Safety: only apply when cmt still has G_TX_CLAMP AFTER the shader clamp
+            // logic above. If the shader clamp path cleared G_TX_CLAMP, GL uses REPEAT
+            // and UV > 1.0 would wrap (creating a copy artifact) — skip in that case.
+            {
+                const uint32_t hdFlags =
+                    mRdp->loaded_texture[mRdp->texture_tile[tile].tmem_index].tex_flags;
+                if ((hdFlags & TEX_FLAG_LOAD_AS_IMG) != 0) {
+                    const RawTexMetadata* hdMeta =
+                        &mRdp->loaded_texture[mRdp->texture_tile[tile].tmem_index].raw_tex_metadata;
+                    if (hdMeta->height > tex_height[i] && tex_height[i] > 2 && (cmt & G_TX_CLAMP)) {
+                        uv_tex_height[i] = (float)tex_height[i] - 2.0f;
+                    }
+                    if (hdMeta->width > tex_width[i] && tex_width[i] > 2 && (cms & G_TX_CLAMP)) {
+                        uv_tex_width[i] = (float)tex_width[i] - 2.0f;
+                    }
+                }
             }
 
             if (mRenderingState.mTextures[i] == nullptr) {
@@ -1954,18 +1983,18 @@ void Interpreter::GfxSpTri1(uint8_t vtx1_idx, uint8_t vtx2_idx, uint8_t vtx3_idx
                 }
             }
 
-            mBufVbo[mBufVboLen++] = u / tex_width[t];
-            mBufVbo[mBufVboLen++] = v / tex_height[t];
+            mBufVbo[mBufVboLen++] = u / uv_tex_width[t];
+            mBufVbo[mBufVboLen++] = v / uv_tex_height[t];
 
             bool clampS = tm & (1 << 2 * t);
             bool clampT = tm & (1 << 2 * t + 1);
 
             if (clampS) {
-                mBufVbo[mBufVboLen++] = (tex_width2[t] - 0.5f) / tex_width[t];
+                mBufVbo[mBufVboLen++] = (tex_width2[t] - 0.5f) / uv_tex_width[t];
             }
 
             if (clampT) {
-                mBufVbo[mBufVboLen++] = (tex_height2[t] - 0.5f) / tex_height[t];
+                mBufVbo[mBufVboLen++] = (tex_height2[t] - 0.5f) / uv_tex_height[t];
             }
         }
 
@@ -2797,11 +2826,18 @@ void Interpreter::GfxDpFillRectangle(int32_t ulx, int32_t uly, int32_t lrx, int3
     uint32_t mode = (mRdp->other_mode_h & (3U << G_MDSFT_CYCLETYPE));
 
     // OTRTODO: This is a bit of a hack for widescreen screen fades, but it'll work for now...
-    if (ulx == 0 && uly == 0 && lrx == (319 * 4) && lry == (239 * 4)) {
+    // Also expand any fill rect that has a negative ulx — those come from gDPFillWideRectangle
+    // which passes OTRGetDimensionFromLeftEdge coordinates (negative in widescreen).
+    // Without this, the scissor and viewport calculations leave the left margin uncovered.
+    if ((ulx == 0 && uly == 0 && lrx == (319 * 4) && lry == (239 * 4)) ||
+        (ulx < 0 || lrx > (319 * 4))) {
         ulx = -1024;
-        uly = -1024;
         lrx = 2048;
-        lry = 2048;
+        if (uly == 0 && lry == (239 * 4)) {
+            // Also expand vertically for full-screen fades
+            uly = -1024;
+            lry = 2048;
+        }
     }
 
     if (mode == G_CYC_COPY || mode == G_CYC_FILL) {

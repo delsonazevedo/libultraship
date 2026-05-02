@@ -3988,7 +3988,7 @@ typedef union Gfx {
 
 #define gDPFillWideRectangle(pkt, ulx, uly, lrx, lry)                           \
     {                                                                           \
-        Gfx *_g0 = (Gfx*)(pkt), *_g1 = (Gfx*)(pkt);                             \
+        Gfx *_g0 = (Gfx*)(pkt), *_g1 = (Gfx*)(pkt) + 1;                        \
         _g0->words.w0 = _SHIFTL(G_FILLWIDERECT, 24, 8) | _SHIFTL((lrx), 2, 22); \
         _g0->words.w1 = _SHIFTL((lry), 2, 22);                                  \
         _g1->words.w0 = _SHIFTL((ulx), 2, 22);                                  \
