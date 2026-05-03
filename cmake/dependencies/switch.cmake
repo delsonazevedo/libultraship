@@ -10,7 +10,8 @@ target_link_libraries(ImGui PUBLIC SDL2::SDL2)
 # CUSTOM tells ImGui "you provide GL". Force-include glad in every ImGui TU so
 # GLuint / GL_COLOR_BUFFER_BIT / glClear etc. are defined.
 # The shim header (which itself includes glad) additionally neutralises
-# glPolygonMode (desktop-only, null in glad-libnx) - see the header for why.
+# glPolygonMode (desktop-only, null in glad-libnx) and glBindSampler (Mesa
+# NVC0 driver bug) - see the header for why.
 target_compile_definitions(ImGui PRIVATE IMGUI_IMPL_OPENGL_LOADER_CUSTOM)
 target_compile_options(ImGui PRIVATE
     -include ${CMAKE_CURRENT_SOURCE_DIR}/cmake/dependencies/switch_imgui_shim.h

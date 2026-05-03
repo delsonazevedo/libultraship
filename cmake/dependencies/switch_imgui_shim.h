@@ -15,17 +15,21 @@
 //   is never reached, regardless of HasPolygonMode.
 #ifdef __SWITCH__
 #include <glad/glad.h>
+
 // glPolygonMode is desktop-only (not in GLES). glad-libnx leaves its function
 // pointer null and ImGui's runtime feature detection doesn't reliably skip
 // it, so we hard-stub it as a no-op.
 #undef glPolygonMode
 #define glPolygonMode(face, mode) ((void)0)
-// glBindSampler triggers a Mesa NVC0 driver bug on Switch (crash in
-// nvc0_sp_state_create deep inside st_program_string_notify) when called
-// from ImGui's SetupRenderState. Stub it so ImGui doesn't reach the driver
-// path. This means the font texture is sampled with whatever sampler
-// state Fast3D last bound, which can produce visual issues but avoids the
-// hard crash.
+
+// glBindSampler crashes Mesa NVC0 on Switch deep in nvc0_sp_state_create
+// (st_program_string_notify path), regardless of what sampler ID we pass -
+// even a freshly-created sampler with LINEAR/CLAMP_TO_EDGE defaults still
+// trips the same null deref inside the driver's shader-variant creation.
+// We have to stub the call entirely. Side effect: ImGui's font texture is
+// sampled with whatever sampler state Fast3D last bound, which can produce
+// minor visual artefacts (notably some sprite tiles rendering as white
+// squares) but avoids the hard crash.
 #undef glBindSampler
 #define glBindSampler(unit, sampler) ((void)0)
 #endif
