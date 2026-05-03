@@ -62,7 +62,7 @@ std::stack<std::string> currentDir;
 #define RATIO_Y(activeFb, dims) \
     ((mFbActive ? activeFb->second.applied_height : dims.height) / (2.0f * HALF_SCREEN_HEIGHT(activeFb)))
 
-#define TEXTURE_CACHE_MAX_SIZE 1024
+#define TEXTURE_CACHE_MAX_SIZE 256
 
 namespace Fast {
 
@@ -419,8 +419,12 @@ ColorCombiner* Interpreter::LookupOrCreateColorCombiner(const ColorCombinerKey& 
 
 void Interpreter::TextureCacheClear() {
     for (const auto& entry : mTextureCache.map) {
-        mTextureCache.free_texture_ids.push_back(entry.second.texture_id);
+        // Delete the GL texture to immediately free VRAM before reuse.
+        mRapi->DeleteTexture(entry.second.texture_id);
     }
+    // free_texture_ids is intentionally left empty: all old IDs were
+    // deleted above, so the next allocations will call NewTexture().
+    mTextureCache.free_texture_ids.clear();
     mTextureCache.map.clear();
     mTextureCache.lru.clear();
     // Pre-allocate buckets so the map never rehashes during normal operation.
@@ -445,13 +449,20 @@ bool Interpreter::TextureCacheLookup(int i, const TextureCacheKey& key) {
     if (mTextureCache.map.size() >= TEXTURE_CACHE_MAX_SIZE) {
         // Remove the texture that was least recently used
         it = mTextureCache.lru.front().it;
-        mTextureCache.free_texture_ids.push_back(it->second.texture_id);
+        uint32_t evicted_id = it->second.texture_id;
         for (int j = 0; j < SHADER_MAX_TEXTURES; j++) {
             if (mRenderingState.mTextures[j] == &*it)
                 mRenderingState.mTextures[j] = nullptr;
         }
         mTextureCache.map.erase(it);
         mTextureCache.lru.pop_front();
+        // Delete the GL texture object to free VRAM immediately rather
+        // than waiting for glTexImage2D to reallocate on the next use.
+        // GL automatically unbinds deleted textures, so the driver can
+        // reclaim the memory without a glFinish stall.
+        mRapi->DeleteTexture(evicted_id);
+        // Do NOT push to free_texture_ids: we will call NewTexture() below
+        // to get a fresh ID, avoiding any stale binding-cache issues.
     }
 
     uint32_t texture_id;
@@ -493,7 +504,8 @@ void Interpreter::TextureCacheDelete(const uint8_t* origAddr) {
                         mRenderingState.mTextures[j] = nullptr;
                 }
                 mTextureCache.lru.erase(it->second.lru_location);
-                mTextureCache.free_texture_ids.push_back(it->second.texture_id);
+                // Delete the GL texture to free VRAM; don't reuse the ID.
+                mRapi->DeleteTexture(it->second.texture_id);
                 mTextureCache.map.erase(it->first);
                 again = true;
                 break;
