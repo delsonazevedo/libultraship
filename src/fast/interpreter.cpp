@@ -1885,6 +1885,13 @@ void Interpreter::GfxSpTri1(uint8_t vtx1_idx, uint8_t vtx2_idx, uint8_t vtx3_idx
             // ~1/N of the HD texture is unreachable, clipping italic descenders.
             // Fix: reduce the UV divisor by 2 so the last N64 texel maps past 1.0,
             // which GL CLAMP_TO_EDGE then clamps to the actual last HD pixel.
+            // Only apply when the HD upscale ratio is large enough that the missed
+            // edge region is visible: at low scales (e.g. 2x portrait border),
+            // the existing +0.5 BILERP offset already samples close to the last
+            // HD texel, and applying the -2 stretch instead compresses the texture
+            // and shifts content leftward (visible on the post-race portrait border).
+            // The italic font case is 32x scale, where 16 HD pixels at the bottom
+            // are genuinely unreachable without the stretch.
             // Safety: only apply when cmt still has G_TX_CLAMP AFTER the shader clamp
             // logic above. If the shader clamp path cleared G_TX_CLAMP, GL uses REPEAT
             // and UV > 1.0 would wrap (creating a copy artifact) — skip in that case.
@@ -1894,10 +1901,15 @@ void Interpreter::GfxSpTri1(uint8_t vtx1_idx, uint8_t vtx2_idx, uint8_t vtx3_idx
                 if ((hdFlags & TEX_FLAG_LOAD_AS_IMG) != 0) {
                     const RawTexMetadata* hdMeta =
                         &mRdp->loaded_texture[mRdp->texture_tile[tile].tmem_index].raw_tex_metadata;
-                    if (hdMeta->height > tex_height[i] && tex_height[i] > 2 && (cmt & G_TX_CLAMP)) {
+                    const uint32_t hdScaleH =
+                        (tex_height[i] > 0) ? (uint32_t)hdMeta->height / tex_height[i] : 0;
+                    const uint32_t hdScaleW =
+                        (tex_width[i] > 0) ? (uint32_t)hdMeta->width / tex_width[i] : 0;
+                    const uint32_t kLargeHdScale = 8;
+                    if (hdScaleH >= kLargeHdScale && tex_height[i] > 2 && (cmt & G_TX_CLAMP)) {
                         uv_tex_height[i] = (float)tex_height[i] - 2.0f;
                     }
-                    if (hdMeta->width > tex_width[i] && tex_width[i] > 2 && (cms & G_TX_CLAMP)) {
+                    if (hdScaleW >= kLargeHdScale && tex_width[i] > 2 && (cms & G_TX_CLAMP)) {
                         uv_tex_width[i] = (float)tex_width[i] - 2.0f;
                     }
                 }
