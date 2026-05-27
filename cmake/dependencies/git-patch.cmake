@@ -1,8 +1,12 @@
 # In variables: patch_file, with_reset
 
+# --ignore-whitespace / --ignore-space-change: on Windows the dependency is
+# checked out with autocrlf, so the patch context lines carry CRLF while the
+# .patch file is LF — plain `git apply` then rejects every hunk. Ignoring
+# whitespace lets the patch land regardless of line-ending normalization.
 function(patch)
     execute_process(
-        COMMAND git apply ${patch_file}
+        COMMAND git apply --ignore-whitespace --ignore-space-change ${patch_file}
         RESULT_VARIABLE ret
         ERROR_QUIET
     )
@@ -11,7 +15,7 @@ endfunction()
 
 function(check_patch)
     execute_process(
-        COMMAND git apply --reverse --check ${patch_file}
+        COMMAND git apply --reverse --check --ignore-whitespace --ignore-space-change ${patch_file}
         RESULT_VARIABLE ret
         ERROR_QUIET
     )

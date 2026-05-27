@@ -1,10 +1,15 @@
 #=================== Nintendo Switch (devkitPro / libnx) ===================
-# Uses devkitPro's portlibs SDL2 + glad. devkitPro toolchain already adds
-# ${DEVKITPRO}/portlibs/switch/include to the compiler include path, so we
-# don't need to wire it on the libultraship target here.
+# Uses devkitPro's portlibs SDL2 + glad.
 
 find_package(SDL2 REQUIRED)
 target_link_libraries(ImGui PUBLIC SDL2::SDL2)
+
+# devkitPro's SDL2 target only exposes portlibs/switch/include/SDL2, and this
+# toolchain doesn't put the base portlibs include on target search paths, so
+# <glad/glad.h> (pulled in by the shim below and by Fast3D's gfx_opengl) isn't
+# found. Add it PUBLIC on ImGui — libultraship links ImGui PUBLIC, so it
+# propagates to the Fast3D GL backend and the game executable too.
+target_include_directories(ImGui PUBLIC $ENV{DEVKITPRO}/portlibs/switch/include)
 
 # imgui_impl_opengl3 should not try to load GL via glew/gl3w on Switch — glad is used.
 # CUSTOM tells ImGui "you provide GL". Force-include glad in every ImGui TU so
