@@ -120,11 +120,27 @@ void Ship::Switch::ApplyOverclock(void) {
     if (perfMode >= 0 && perfMode <= Ship::POWERSAVINGM3) {
         if (hosversionBefore(8, 0, 0)) {
             pcvSetClockRate(PcvModule_CpuBus, SWITCH_CPU_SPEEDS_VALUES[perfMode]);
+            pcvSetClockRate(PcvModule_GPU, SWITCH_GPU_SPEEDS_VALUES[perfMode]);
+            pcvSetClockRate(PcvModule_EMC, SWITCH_EMC_SPEEDS_VALUES[perfMode]);
         } else {
-            ClkrstSession session = { 0 };
-            clkrstOpenSession(&session, PcvModuleId_CpuBus, 3);
-            clkrstSetClockRate(&session, SWITCH_CPU_SPEEDS_VALUES[perfMode]);
-            clkrstCloseSession(&session);
+            // CPU, GPU and memory (EMC) each get their own clkrst session.
+            // GPU + EMC are the real lever for busy-scene render stutter; the
+            // CPU-only profile left them at the stock (often handheld) clock.
+            const struct {
+                PcvModuleId module;
+                unsigned rate;
+            } clocks[] = {
+                { PcvModuleId_CpuBus, SWITCH_CPU_SPEEDS_VALUES[perfMode] },
+                { PcvModuleId_GPU, SWITCH_GPU_SPEEDS_VALUES[perfMode] },
+                { PcvModuleId_EMC, SWITCH_EMC_SPEEDS_VALUES[perfMode] },
+            };
+            for (const auto& c : clocks) {
+                ClkrstSession session = { 0 };
+                if (R_SUCCEEDED(clkrstOpenSession(&session, c.module, 3))) {
+                    clkrstSetClockRate(&session, c.rate);
+                    clkrstCloseSession(&session);
+                }
+            }
         }
     }
 }
