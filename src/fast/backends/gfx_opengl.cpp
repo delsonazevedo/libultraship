@@ -7,6 +7,7 @@
 
 #include <map>
 #include <unordered_map>
+#include <vector>
 
 #ifndef _LANGUAGE_C
 #define _LANGUAGE_C
@@ -284,7 +285,9 @@ std::string GfxRenderingAPIOGL::BuildFsShader(const CCFeatures& cc_features) {
         { "core_opengl", true },
         { "texture", "texture" },
         { "vOutColor", "vOutColor" },
-#elif defined(USE_OPENGLES)
+#elif defined(USE_OPENGLES) || defined(__SWITCH__)
+        // Switch (devkitPro libnx + glad) and other GLES targets use the
+        // GLES 3.0 shader path.
         { "GLSL_VERSION", "#version 300 es\nprecision mediump float;" },
         { "attr", "in" },
         { "opengles", true },
@@ -353,7 +356,8 @@ static std::string BuildVsShader(const CCFeatures& cc_features) {
                                      { "attr", "in" },
                                      { "out", "out" },
                                      { "opengles", false }
-#elif defined(USE_OPENGLES)
+#elif defined(USE_OPENGLES) || defined(__SWITCH__)
+                                     // Switch (devkitPro libnx + glad) and other GLES targets
                                      { "GLSL_VERSION", "#version 300 es" },
                                      { "attr", "in" },
                                      { "out", "out" },
@@ -572,7 +576,7 @@ void GfxRenderingAPIOGL::UploadTexture(const uint8_t* rgba32_buf, uint32_t width
     textures[mCurrentTextureIds[mCurrentTile]].height = height;
 }
 
-#ifdef USE_OPENGLES
+#if defined(USE_OPENGLES) || defined(__SWITCH__)
 #define GL_MIRROR_CLAMP_TO_EDGE 0x8743
 #endif
 
@@ -690,7 +694,7 @@ void GfxRenderingAPIOGL::DrawTriangles(float buf_vbo[], size_t buf_vbo_len, size
 }
 
 void GfxRenderingAPIOGL::Init() {
-#if !defined(__linux__) && !defined(__OpenBSD__)
+#if !defined(__linux__) && !defined(__OpenBSD__) && !defined(__SWITCH__)
     glewInit();
 #endif
 
@@ -1799,7 +1803,27 @@ void GfxRenderingAPIOGL::ReadFramebufferToCPU(int fb_id, uint32_t width, uint32_
     }
 
     glBindFramebuffer(GL_FRAMEBUFFER, mFrameBuffers[fb_id].fbo);
+
+#if defined(__SWITCH__) || defined(USE_OPENGLES)
+    // GLES 3.0 glReadPixels only guarantees support for the format/type combo
+    // that matches the framebuffer's GL_IMPLEMENTATION_COLOR_READ_*. The
+    // (GL_RGBA, GL_UNSIGNED_SHORT_5_5_5_1) combo silently fails on Mesa NVC0
+    // (Switch), leaving rgba16_buf untouched. Read as RGBA8 and pack to 5551
+    // manually.
+    const size_t pixelCount = (size_t)width * (size_t)height;
+    std::vector<uint8_t> rgba8(pixelCount * 4);
+    glReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, rgba8.data());
+    for (size_t i = 0; i < pixelCount; ++i) {
+        const uint8_t r = rgba8[i * 4 + 0];
+        const uint8_t g = rgba8[i * 4 + 1];
+        const uint8_t b = rgba8[i * 4 + 2];
+        const uint8_t a = rgba8[i * 4 + 3];
+        rgba16_buf[i] = (uint16_t)(((r >> 3) << 11) | ((g >> 3) << 6) | ((b >> 3) << 1) | (a >> 7));
+    }
+#else
     glReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_SHORT_5_5_5_1, (void*)rgba16_buf);
+#endif
+
     glBindFramebuffer(GL_FRAMEBUFFER, mFrameBuffers[mCurrentFrameBuffer].fbo);
 }
 

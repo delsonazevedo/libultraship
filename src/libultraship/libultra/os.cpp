@@ -24,6 +24,7 @@ int32_t osContInit(OSMesgQueue* mq, uint8_t* controllerBits, OSContStatus* statu
     // SSB64 controller-init thread, terminate() fires, and spdlog's async
     // pool tears down on the way out, leaving a 0xE06D7363 crash that's
     // hard to diagnose from a user log.
+#ifndef __SWITCH__
     try {
         std::string controllerDb = Ship::Context::LocateFileAcrossAppDirs("gamecontrollerdb.txt");
         int mappingsAdded = SDL_GameControllerAddMappingsFromFile(controllerDb.c_str());
@@ -37,6 +38,7 @@ int32_t osContInit(OSMesgQueue* mq, uint8_t* controllerBits, OSContStatus* statu
     } catch (...) {
         SPDLOG_ERROR("osContInit: skipping gamecontrollerdb.txt — unknown exception");
     }
+#endif
 
     // Run RaphnetPhysicalDeviceManager init BEFORE SDL_Init(GAMECONTROLLER).
     // The raphnet adapter exposes both a HID joystick interface (which SDL

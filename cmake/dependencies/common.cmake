@@ -119,7 +119,10 @@ endif()
 # Heavy first-build cost (~10-20s extra link), so default OFF on the mobile
 # targets that don't yet have a CRT-shader UI. Desktops get it ON so user
 # .glsl drops Just Work cross-backend.
-if (CMAKE_SYSTEM_NAME STREQUAL "iOS" OR CMAKE_SYSTEM_NAME STREQUAL "Android")
+if (CMAKE_SYSTEM_NAME STREQUAL "iOS" OR CMAKE_SYSTEM_NAME STREQUAL "Android"
+        OR CMAKE_SYSTEM_NAME STREQUAL "NintendoSwitch")
+    # glslang + SPIRV-Cross are a heavy cross-compile and the Switch GLES
+    # backend has no CRT-shader UI yet, so keep the transpiler off there.
     set(_LUS_PP_TRANSPILER_DEFAULT OFF)
 else()
     set(_LUS_PP_TRANSPILER_DEFAULT ON)
@@ -197,7 +200,11 @@ FetchContent_MakeAvailable(prism)
 # success but hid_enumerate() returns nullptr, so RaphnetPhysicalDeviceManager
 # decides "no adapter found" and the SDL2 / Java HIDDeviceManager handles
 # everything that's actually present.
-if (CMAKE_SYSTEM_NAME STREQUAL "Android")
+if (CMAKE_SYSTEM_NAME STREQUAL "Android" OR CMAKE_SYSTEM_NAME STREQUAL "NintendoSwitch")
+    # Neither the NDK sysroot nor devkitPro/libnx ship a usable libusb-1.0 HID
+    # host backend, so stub hidapi out. Raphnet code links cleanly; at runtime
+    # hid_enumerate() returns nullptr and the SDL2 controller path handles the
+    # joycons / pro controller that are actually present.
     set(_LUS_HIDAPI_STUB_DIR ${CMAKE_CURRENT_BINARY_DIR}/hidapi_stub)
     file(MAKE_DIRECTORY ${_LUS_HIDAPI_STUB_DIR})
     file(WRITE ${_LUS_HIDAPI_STUB_DIR}/hidapi.h [=[

@@ -64,20 +64,37 @@ if (GFX_DEBUG_DISASSEMBLER)
     target_link_libraries(libultraship PRIVATE libgfxd)
 endif()
 
-find_package(libzip REQUIRED)
+# On NintendoSwitch these targets are created from source via FetchContent in
+# cmake/dependencies/switch.cmake (devkitPro ships none / too-old versions), so
+# skip find_package when the target already exists.
+if(NOT TARGET libzip::zip)
+    find_package(libzip REQUIRED)
+endif()
 target_link_libraries(libultraship PRIVATE libzip::zip)
 
-find_package(nlohmann_json REQUIRED)
+if(NOT TARGET nlohmann_json::nlohmann_json)
+    find_package(nlohmann_json REQUIRED)
+endif()
 target_link_libraries(libultraship PUBLIC nlohmann_json::nlohmann_json)
 
-find_package(tinyxml2 REQUIRED)
+if(NOT TARGET tinyxml2::tinyxml2)
+    find_package(tinyxml2 REQUIRED)
+endif()
 target_link_libraries(libultraship PUBLIC tinyxml2::tinyxml2)
 
-find_package(spdlog REQUIRED)
+if(NOT TARGET spdlog::spdlog)
+    find_package(spdlog REQUIRED)
+endif()
 target_link_libraries(libultraship PUBLIC spdlog::spdlog)
 
 # hidapi for native Raphnet N64 USB adapter (vendored via FetchContent in cmake/dependencies/common.cmake).
 target_link_libraries(libultraship PRIVATE hidapi::hidapi)
+
+if (CMAKE_SYSTEM_NAME STREQUAL "NintendoSwitch")
+    set(THREADS_PREFER_PTHREAD_FLAG ON)
+    find_package(Threads REQUIRED)
+    target_link_libraries(libultraship PRIVATE Threads::Threads)
+endif()
 
 if (CMAKE_SYSTEM_NAME STREQUAL "Darwin")
     set(THREADS_PREFER_PTHREAD_FLAG ON)
