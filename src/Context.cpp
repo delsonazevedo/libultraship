@@ -23,6 +23,13 @@
 #include <pwd.h>
 #endif
 
+#ifdef __SWITCH__
+// Avoid including <switch.h> here — its `u64`/`s64` typedefs (uint64_t/int64_t
+// from stdint) clash with libultra/types.h's (unsigned/signed long long).
+// Context only needs getcwd() to resolve the .nro directory.
+#include <unistd.h>
+#endif
+
 namespace Ship {
 std::weak_ptr<Context> Context::mContext;
 
@@ -410,6 +417,23 @@ std::string Context::GetAppBundlePath() {
     return std::string(home) + "/Documents";
 #endif
 
+#ifdef __SWITCH__
+    // HBMenu/nxlink chdir() into the directory containing the launched .nro,
+    // so getcwd() is the canonical "next to the .nro" location for the
+    // .o2r / shaders / logs / mods siblings. If that ever fails, fall back
+    // to the conventional install path used by all Harbour Masters Switch
+    // builds — Starship lives under sdmc:/switch/sf64/.
+    char cwd_buf[1024];
+    if (getcwd(cwd_buf, sizeof(cwd_buf)) != nullptr && cwd_buf[0] != '\0') {
+        std::string cwd(cwd_buf);
+        // Reject "/" as bundle path — HBMenu sometimes launches with CWD=/.
+        if (cwd != "/") {
+            return cwd;
+        }
+    }
+    return "sdmc:/switch/sf64";
+#endif
+
 #ifdef NON_PORTABLE
     return CMAKE_INSTALL_PREFIX;
 #else
@@ -466,6 +490,12 @@ std::string Context::GetAppDirectoryPath(std::string appName) {
 #ifdef __IOS__
     const char* home = getenv("HOME");
     return std::string(home) + "/Documents";
+#endif
+
+#ifdef __SWITCH__
+    // Share the bundle path so logs/, mods/, cvars.cfg, and assets all live
+    // next to the .nro under sdmc:/switch/sf64/.
+    return GetAppBundlePath();
 #endif
 
 #if defined(__APPLE__)

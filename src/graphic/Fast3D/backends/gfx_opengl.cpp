@@ -275,7 +275,9 @@ std::string GfxRenderingAPIOGL::BuildFsShader(const CCFeatures& cc_features) {
         { "core_opengl", true },
         { "texture", "texture" },
         { "vOutColor", "vOutColor" },
-#elif defined(USE_OPENGLES)
+#elif defined(USE_OPENGLES) || defined(__SWITCH__)
+        // Switch (Mesa NVC0) requires GLES 3.0 GLSL, not desktop 110/130 —
+        // the shader compile path silently aborts otherwise.
         { "GLSL_VERSION", "#version 300 es\nprecision mediump float;" },
         { "attr", "in" },
         { "opengles", true },
@@ -336,7 +338,9 @@ static std::string BuildVsShader(const CCFeatures& cc_features) {
                                      { "attr", "in" },
                                      { "out", "out" },
                                      { "opengles", false }
-#elif defined(USE_OPENGLES)
+#elif defined(USE_OPENGLES) || defined(__SWITCH__)
+                                     // Switch (Mesa NVC0 / GLES 3.0): mirror the
+                                     // fragment-shader path above with GLSL ES.
                                      { "GLSL_VERSION", "#version 300 es" },
                                      { "attr", "in" },
                                      { "out", "out" },
@@ -388,10 +392,20 @@ ShaderProgram* GfxRenderingAPIOGL::CreateAndLoadNewShader(uint64_t shader_id0, u
     if (!success) {
         GLint max_length = 0;
         glGetShaderiv(vertex_shader, GL_INFO_LOG_LENGTH, &max_length);
-        char error_log[1024];
-        // fprintf(stderr, "Vertex shader compilation failed\n");
-        glGetShaderInfoLog(vertex_shader, max_length, &max_length, &error_log[0]);
-        // fprintf(stderr, "%s\n", &error_log[0]);
+        char error_log[2048] = { 0 };
+        glGetShaderInfoLog(vertex_shader, sizeof(error_log) - 1, &max_length, &error_log[0]);
+#ifdef __SWITCH__
+        // Persist the compile error + the failing GLSL source next to the
+        // .nro so it survives the abort() on a console without stderr.
+        if (FILE* d = std::fopen("shader_error.txt", "wb")) {
+            std::fprintf(d, "=== VERTEX SHADER COMPILE FAILED ===\n");
+            std::fprintf(d, "--- info log ---\n%s\n", error_log);
+            std::fprintf(d, "--- source ---\n%s\n", sources[0]);
+            std::fclose(d);
+        }
+#else
+        fprintf(stderr, "Vertex shader compilation failed\n%s\n", &error_log[0]);
+#endif
         abort();
     }
 
@@ -402,10 +416,18 @@ ShaderProgram* GfxRenderingAPIOGL::CreateAndLoadNewShader(uint64_t shader_id0, u
     if (!success) {
         GLint max_length = 0;
         glGetShaderiv(fragment_shader, GL_INFO_LOG_LENGTH, &max_length);
-        char error_log[1024];
-        fprintf(stderr, "Fragment shader compilation failed\n");
-        glGetShaderInfoLog(fragment_shader, max_length, &max_length, &error_log[0]);
-        fprintf(stderr, "%s\n", &error_log[0]);
+        char error_log[2048] = { 0 };
+        glGetShaderInfoLog(fragment_shader, sizeof(error_log) - 1, &max_length, &error_log[0]);
+#ifdef __SWITCH__
+        if (FILE* d = std::fopen("shader_error.txt", "wb")) {
+            std::fprintf(d, "=== FRAGMENT SHADER COMPILE FAILED ===\n");
+            std::fprintf(d, "--- info log ---\n%s\n", error_log);
+            std::fprintf(d, "--- source ---\n%s\n", sources[1]);
+            std::fclose(d);
+        }
+#else
+        fprintf(stderr, "Fragment shader compilation failed\n%s\n", &error_log[0]);
+#endif
         abort();
     }
 
@@ -541,7 +563,8 @@ void GfxRenderingAPIOGL::UploadTexture(const uint8_t* rgba32_buf, uint32_t width
     textures[mCurrentTextureIds[mCurrentTile]].height = height;
 }
 
-#ifdef USE_OPENGLES
+#if defined(USE_OPENGLES) || defined(__SWITCH__)
+// GL_MIRROR_CLAMP_TO_EDGE is desktop-GL only; the GLES headers (and glad-libnx) don't expose it.
 #define GL_MIRROR_CLAMP_TO_EDGE 0x8743
 #endif
 
@@ -652,7 +675,12 @@ void GfxRenderingAPIOGL::DrawTriangles(float buf_vbo[], size_t buf_vbo_len, size
 }
 
 void GfxRenderingAPIOGL::Init() {
-#ifndef __linux__
+#if defined(__SWITCH__)
+    // glad has already been loaded by GfxWindowBackendSDL2::Init via
+    // gladLoadGLLoader(SDL_GL_GetProcAddress) — devkitPro's glad-libnx has
+    // no default loader, so any second parameterless gladLoadGL() here
+    // would return 0 and clobber the previously loaded function pointers.
+#elif !defined(__linux__)
     glewInit();
 #endif
 

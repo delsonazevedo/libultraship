@@ -23,6 +23,10 @@
 #include <SDL.h>
 #include "gfx_metal.h"
 #include "utils/macUtils.h"
+#elif __SWITCH__
+#include <SDL2/SDL.h>
+#include <glad/glad.h>
+#include "port/switch/SwitchImpl.h"
 #else
 #include <SDL2/SDL.h>
 #define GL_GLEXT_PROTOTYPES 1
@@ -342,6 +346,12 @@ void GfxWindowBackendSDL2::Init(const char* gameName, const char* gfxApiName, bo
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
+#elif defined(__SWITCH__)
+    // Switch (Mesa NVC0) exposes a GLES 3.0 context. Request it explicitly so
+    // SDL doesn't fall back to a desktop profile that the driver can't honour.
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
 #endif
 
 #ifdef _WIN32
@@ -367,6 +377,21 @@ void GfxWindowBackendSDL2::Init(const char* gameName, const char* gfxApiName, bo
     } else {
         flags = flags | SDL_WINDOW_METAL;
     }
+
+#ifdef __SWITCH__
+    // Force the window to match the Switch display (docked = 1080p, handheld
+    // = 720p). Creating with the PC-default size first and resizing later
+    // produces a stretched/black frame and trips Mesa NVC0 on context
+    // resize. We override both the SDL_CreateWindow size and the cached
+    // mWindowWidth/Height so Fast3D uses the correct backbuffer dimensions
+    // throughout.
+    {
+        int sw = 0, sh = 0;
+        Ship::Switch::GetDisplaySize(&sw, &sh);
+        mWindowWidth = sw;
+        mWindowHeight = sh;
+    }
+#endif
 
     mWnd = SDL_CreateWindow(title, posX, posY, mWindowWidth, mWindowHeight, flags);
 #ifdef _WIN32
@@ -398,6 +423,24 @@ void GfxWindowBackendSDL2::Init(const char* gameName, const char* gfxApiName, bo
 
         SDL_GL_MakeCurrent(mWnd, mCtx);
         SDL_GL_SetSwapInterval(mVsyncEnabled ? 1 : 0);
+
+#ifdef __SWITCH__
+        // gladLoadGL must happen between MakeCurrent and the Gui::Init below
+        // — Gui::Init calls ImGui_ImplOpenGL3_Init which immediately
+        // exercises GL function pointers. Use gladLoadGLLoader with SDL's
+        // proc-address getter: devkitPro's glad-libnx has no default loader,
+        // so the parameterless gladLoadGL() leaves every GL function pointer
+        // null and the next call would silently dereference null (we saw
+        // both the previous Instruction Abort and the current silent exit
+        // come from this).
+        if (!gladLoadGLLoader((GLADloadproc)SDL_GL_GetProcAddress)) {
+            Ship::Switch::PrintErrorMessageToScreen(
+                "\x1b[2;2HStarship: gladLoadGLLoader failed."
+                "\x1b[4;2HSDL_GetError: %s"
+                "\x1b[6;2H(Press + on a controller to close.)",
+                SDL_GetError());
+        }
+#endif
 
         window_impl.Opengl = { mWnd, mCtx };
     } else {

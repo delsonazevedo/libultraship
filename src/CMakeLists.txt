@@ -120,6 +120,14 @@ if (CMAKE_SYSTEM_NAME STREQUAL "Android" OR CMAKE_SYSTEM_NAME STREQUAL "iOS")
     )
 endif()
 
+if (CMAKE_SYSTEM_NAME STREQUAL "NintendoSwitch")
+    set(Source_Files__Port
+        ${CMAKE_CURRENT_SOURCE_DIR}/port/switch/SwitchImpl.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/port/switch/SwitchImpl.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/port/switch/SwitchPerformanceProfiles.h
+    )
+endif()
+
 source_group("port" FILES ${Source_Files__Port})
 target_sources(libultraship PRIVATE ${Source_Files__Port})
 
@@ -188,17 +196,38 @@ if (GFX_DEBUG_DISASSEMBLER)
     target_link_libraries(libultraship PRIVATE libgfxd)
 endif()
 
-find_package(libzip REQUIRED)
-target_link_libraries(libultraship PRIVATE libzip::zip)
+# On Switch these are FetchContent'd by cmake/dependencies/switch.cmake; only
+# call find_package when the target hasn't already been created.
+if (NOT TARGET libzip::zip AND NOT TARGET zip)
+    find_package(libzip REQUIRED)
+endif()
+# Make libzip PUBLIC: O2rArchive.h includes <zip.h> transitively in a public header.
+if (TARGET libzip::zip)
+    target_link_libraries(libultraship PUBLIC libzip::zip)
+else()
+    target_link_libraries(libultraship PUBLIC zip)
+endif()
 
-find_package(nlohmann_json REQUIRED)
+if (NOT TARGET nlohmann_json::nlohmann_json)
+    find_package(nlohmann_json REQUIRED)
+endif()
 target_link_libraries(libultraship PUBLIC nlohmann_json::nlohmann_json)
 
-find_package(tinyxml2 REQUIRED)
+if (NOT TARGET tinyxml2::tinyxml2 AND NOT TARGET tinyxml2)
+    find_package(tinyxml2 REQUIRED)
+endif()
 target_link_libraries(libultraship PUBLIC tinyxml2::tinyxml2)
 
-find_package(spdlog REQUIRED)
+if (NOT TARGET spdlog::spdlog AND NOT TARGET spdlog)
+    find_package(spdlog REQUIRED)
+endif()
 target_link_libraries(libultraship PUBLIC spdlog::spdlog)
+
+if (CMAKE_SYSTEM_NAME STREQUAL "NintendoSwitch")
+    set(THREADS_PREFER_PTHREAD_FLAG ON)
+    find_package(Threads REQUIRED)
+    target_link_libraries(libultraship PRIVATE Threads::Threads)
+endif()
 
 if (CMAKE_SYSTEM_NAME STREQUAL "Darwin")
     set(THREADS_PREFER_PTHREAD_FLAG ON)

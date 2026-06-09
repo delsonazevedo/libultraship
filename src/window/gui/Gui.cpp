@@ -220,7 +220,11 @@ void Gui::ImGuiBackendInit() {
         case WindowBackend::FAST3D_SDL_OPENGL:
 #ifdef __APPLE__
             ImGui_ImplOpenGL3_Init("#version 410 core");
-#elif USE_OPENGLES
+#elif defined(USE_OPENGLES) || defined(__SWITCH__)
+            // Switch runs Mesa NVC0 with a GLES 3.0 context. Passing
+            // #version 120 here causes ImGui_ImplOpenGL3_Init to upload a
+            // desktop-GLSL shader that Mesa NVC0 fails to validate, and the
+            // call later derefs a null function pointer.
             ImGui_ImplOpenGL3_Init("#version 300 es");
 #else
             ImGui_ImplOpenGL3_Init("#version 120");
