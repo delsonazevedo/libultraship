@@ -215,7 +215,18 @@ ResourceManager::LoadResourceAsync(const std::string& filePath, bool loadExact, 
 
 std::shared_ptr<IResource> ResourceManager::LoadResource(const ResourceIdentifier& identifier, bool loadExact,
                                                          std::shared_ptr<ResourceInitData> initData) {
+#ifdef __SWITCH__
+    // On Switch the thread-pool worker threads have a small default stack and
+    // resource parsing overflows it; additionally the pool is left paused until
+    // archives load (see Init), so a worker-dispatched job can hang forever on
+    // .get(). A synchronous load has no reason to round-trip through a worker —
+    // the caller blocks anyway — so run it directly on the calling thread, which
+    // has a full-size stack. LoadResourceProcess already does its own OTR-prefix
+    // and cache handling, so this is behaviourally equivalent minus the threading.
+    auto resource = LoadResourceProcess(identifier, loadExact, initData);
+#else
     auto resource = LoadResourceAsync(identifier, loadExact, BS::pr::highest, initData).get();
+#endif
     if (resource == nullptr) {
         SPDLOG_TRACE("Failed to load resource file at path {}", identifier.Path);
     }

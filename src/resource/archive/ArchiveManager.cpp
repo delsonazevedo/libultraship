@@ -208,11 +208,25 @@ std::vector<std::string> ArchiveManager::GetArchiveListInPaths(const std::vector
                         StringHelper::IEquals(p.path().extension().string(), ".zip") ||
                         StringHelper::IEquals(p.path().extension().string(), ".mpq") ||
                         StringHelper::IEquals(p.path().extension().string(), ".o2r")) {
+#ifdef __SWITCH__
+                        // std::filesystem::absolute() mangles "sdmc:/..." paths on devkitPro:
+                        // it doesn't treat "sdmc:" as a root, so it prepends the CWD and the
+                        // resulting path can no longer be opened by zip_open(). The iterator
+                        // already yields a usable absolute path, so use it verbatim.
+                        fileList.push_back(p.path().string());
+#else
                         fileList.push_back(std::filesystem::absolute(p).string());
+#endif
                     }
                 }
             } else if (std::filesystem::is_regular_file(archivePath)) {
+#ifdef __SWITCH__
+                // See note above — the caller's path (resolved from the .nro dir) is already
+                // absolute on Switch; running it through absolute() would corrupt it.
+                fileList.push_back(archivePath);
+#else
                 fileList.push_back(std::filesystem::absolute(archivePath).string());
+#endif
             } else {
                 SPDLOG_WARN("The archive at path {} does not exist", std::filesystem::absolute(archivePath).string());
             }
